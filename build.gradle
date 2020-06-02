@@ -34,7 +34,7 @@ task test(type:Exec, dependsOn: installDeps) {
     './project/vendor/phpunit/phpunit/phpunit' \
     --configuration='./project/phpunit.xml' \
     --log-junit='./logs/unitreport.xml'\
-    ./project/tests/Unit"
+    ./project/tests"
 }
 
 def tarfile = "application-" + version
