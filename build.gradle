@@ -37,6 +37,48 @@ task test(type:Exec, dependsOn: installDeps) {
     ./project/tests/Unit"
 }
 
+task phploc(type: Exec, description: 'Measure project size using PHPLOC') {
+	executable 'sh'
+	args '-c',"/home/ubuntu/tools/phploc --count-tests \
+    --log-csv='./project/build/reports/phploc.csv' \
+    --log-xml='./project/build/reports/phploc.xml' \
+     ./project/app"
+}
+
+task phpmd (type : Exec, description : "Perform project mess detection using PHPMD, and Creating a log file for the Continuous Integration Server"){
+	executable 'sh'
+	args '-c',"/home/ubuntu/tools/phpmd ./app \
+    xml './project/phpmd.xml' \
+    --reportfile './project/build/reports/phpmd.xml'\
+    --ignore-violations-on-exit"
+}
+
+task phpcpd (type : Exec, description : "Find duplicate code using PHPCPD and log result in XML format."){
+	executable 'sh'
+	args '-c',"/home/ubuntu/tools/phpcpd \
+    --log-pmd './project/build/reports/pmd-cpd.xml' \
+    ./project/app"
+}
+
+task phpcs (type : Exec, description : "Find Coding Standard Violations using PHP_CodeSniffer"){
+	executable 'sh'
+	args '-c',"/home/ubuntu/tools/phpcs \
+    --report=checkstyle \
+    --report-file='./project/build/reports/checkstyle.xml' \
+    --standard=PSR2 \
+    --extensions=php \
+    --ignore=autoload.php \
+    --runtime-set ignore_errors_on_exit 1 \
+    --runtime-set ignore_warnings_on_exit 1 \
+    ./project/app/"
+}
+
+task phpdox (type : Exec, description : "Generating Docs enriched with pmd, checkstyle, phpcs,phpunit,phploc"){
+	executable 'sh'
+	args '-c',"/home/ubuntu/tools/phpdox \
+    -f ./project/phpdox.xml"
+}
+
 def tarfile = "application-" + version
 task packageDistribution(type: Zip, dependsOn: test) {
     archiveFileName = tarfile + ".zip"
