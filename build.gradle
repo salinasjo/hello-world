@@ -6,97 +6,99 @@ buildscript {
   }
   dependencies {
     classpath "gradle.plugin.org.swissphpfriends:php-build-plugin:0.1-SNAPSHOT"
+    classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.8"
   }
 }
 
 apply plugin: "org.hasnat.php-build-plugin"
 apply plugin: "distribution"
 apply plugin: "maven-publish"
+apply plugin: "org.sonarqube"
 
-def majorVersion = System.getenv("MAJOR_VERSION") ?: "1"
-def minorVersion = System.getenv("MINOR_VERSION") ?: "0"
-version = majorVersion + "." + minorVersion 
+
+def env = System.getenv()
+version = "1." + env['BUILD_NUMBER']
 
 task purge(type:Delete) {
   //println 'Cleaning up old files'
   delete 'vendor', 'logs', 'build'
+  doLast {
+	file('build/reports').mkdirs()
+  }
 }
 
-task installDeps(type: org.swissphpfriends.gradle.task.ComposerInstall) {
-    workingDirectory = "./project"
+task installDeps(type: org.swissphpfriends.gradle.task.ComposerInstall, dependsOn: purge) {
+    workingDirectory = "./"
     doNotUpdatePhar = true
 }
 
-task test(type:Exec, dependsOn: installDeps) {
+task test(type:Exec) {
   //println 'Executing tests'
   executable 'sh'
   args '-c', "php \
-    './project/vendor/phpunit/phpunit/phpunit' \
-    --configuration='./project/phpunit.xml' \
-    --log-junit='./logs/unitreport.xml'\
-    ./project/tests/Unit"
+    './vendor/phpunit/phpunit/phpunit' \
+    --configuration='./phpunit.xml' \
+    --log-junit='./build/reports/unitreport.xml'\
+    ./tests/Unit"
 }
 
 task phploc(type: Exec, description: 'Measure project size using PHPLOC') {
 	executable 'sh'
 	args '-c',"/home/ubuntu/tools/phploc --count-tests \
-    --log-csv='./project/build/reports/phploc.csv' \
-    --log-xml='./project/build/reports/phploc.xml' \
-     ./project/app"
+    --log-csv='./build/reports/phploc.csv' \
+    --log-xml='./build/reports/phploc.xml' \
+     ./app"
 }
 
 task phpmd (type : Exec, description : "Perform project mess detection using PHPMD, and Creating a log file for the Continuous Integration Server"){
 	executable 'sh'
 	args '-c',"/home/ubuntu/tools/phpmd ./app \
-    xml './project/phpmd.xml' \
-    --reportfile './project/build/reports/phpmd.xml'\
+    xml './phpmd.xml' \
+    --reportfile './build/reports/phpmd.xml'\
     --ignore-violations-on-exit"
 }
 
 task phpcpd (type : Exec, description : "Find duplicate code using PHPCPD and log result in XML format."){
 	executable 'sh'
 	args '-c',"/home/ubuntu/tools/phpcpd \
-    --log-pmd './project/build/reports/pmd-cpd.xml' \
-    ./project/app"
+    --log-pmd './build/reports/pmd-cpd.xml' \
+    ./app"
 }
 
 task phpcs (type : Exec, description : "Find Coding Standard Violations using PHP_CodeSniffer"){
 	executable 'sh'
 	args '-c',"/home/ubuntu/tools/phpcs \
     --report=checkstyle \
-    --report-file='./project/build/reports/checkstyle.xml' \
+    --report-file='./build/reports/checkstyle.xml' \
     --standard=PSR2 \
     --extensions=php \
     --ignore=autoload.php \
     --runtime-set ignore_errors_on_exit 1 \
     --runtime-set ignore_warnings_on_exit 1 \
-    ./project/app/"
+    ./app/"
 }
 
 task phpdox (type : Exec, description : "Generating Docs enriched with pmd, checkstyle, phpcs,phpunit,phploc"){
 	executable 'sh'
 	args '-c',"/home/ubuntu/tools/phpdox \
-    -f ./project/phpdox.xml"
+    -f ./phpdox.xml"
 }
 
-def tarfile = "application-" + version
-task packageDistribution(type: Zip, dependsOn: test) {
-    archiveFileName = tarfile + ".zip"
-    destinationDirectory = file("project/build")
-
-    from ('project/app') { into 'app' }
-    from ('project/bootstrap') { into 'bootstrap' }
-    from ('project/config') { into 'config' }
-      from ('project/database') { into 'database' }
-      from ('project/nbproject') { into 'nbproject' }
-      from ('project/public') { into 'public' }
-      from ('project/resources') { into 'resources' }
-      from ('project/storage') {
-        into 'storage'
-        dirMode 0775
-      }
-      from ('project/vendor') { into 'vendor' }
-      from { 'project/server.php' }
+task packageDistribution(type: Zip) {
+    from ('./app') { into 'app' }
+    from ('./bootstrap') { into 'bootstrap' }
+    from ('./config') { into 'config' }
+    from ('./database') { into 'database' }
+    from ('./nbproject') { into 'nbproject' }
+    from ('./public') { into 'public' }
+    from ('./resources') { into 'resources' }
+    from ('./storage') {
+      into 'storage'
+      dirMode 0775
+    }
+    from ('./vendor') { into 'vendor' }
+    from { './server.php' }
+    destinationDirectory = file("./build")
 }
 
 group = 'laravel-kingoludo'
@@ -121,3 +123,11 @@ publishing {
 assemble.dependsOn packageDistribution
    build.dependsOn assemble
  publish.dependsOn build
+ 
+ 
+sonarqube {
+    properties {
+        property "sonar.sources", "app"
+        property "sonar.php.tests.reportPath", "build/reports/unitreport.xml"
+    }
+}
